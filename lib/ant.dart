@@ -5,15 +5,14 @@ class AntOverlayWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // This widget is a placeholder for our ant.
+    // It is a simple black square for now.
+    // In the next step, we will replace this with an Image widget.
     return IgnorePointer(
-      ignoring: true, // So it doesn't block any touch
+      ignoring: true, // So it doesn't block any touch events on the screen.
       child: Container(
-        width: 200,
-        height: 200,
-        decoration: const BoxDecoration(
-          color: Colors.black,
-          shape: BoxShape.circle,
-        ),
+        // The color of our placeholder ant.
+        color: Colors.black,
       ),
     );
   }

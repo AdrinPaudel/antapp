@@ -1,8 +1,9 @@
 import 'dart:io'; // For Platform and exit()
+import 'dart:typed_data'; // For Uint8List
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
-// import 'settings_screen.dart'; // You'll need to create this for the actual navigation
+import 'settings_screen.dart'; // Make sure settings_screen.dart is in your lib folder
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   static const platform = MethodChannel('overlay_permission');
 
+  // --- (Lifecycle and Permission methods are unchanged) ---
   @override
   void initState() {
     super.initState();
@@ -30,10 +32,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _updateStatusText();
     _handleStartupLogic().then((_) {
       if (mounted && !_showWelcome && !_showPermission) {
-        print("[AntCrawlerFlutter] initState: Startup logic complete, syncing overlay status.");
+        print(
+            "[AntCrawlerFlutter] initState: Startup logic complete AND no dialogs pending, syncing overlay status.");
         _syncOverlayStatusWithNative();
       } else {
-        print("[AntCrawlerFlutter] initState: Startup logic resulted in dialog or not mounted, delaying sync.");
+        print(
+            "[AntCrawlerFlutter] initState: Startup logic resulted in dialog, or not mounted, or other checks pending. Sync will occur later if needed (e.g., on resume or after dialog close).");
       }
     });
   }
@@ -41,7 +45,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _handleStartupLogic() async {
     final prefs = await SharedPreferences.getInstance();
     bool isFirstTime = prefs.getBool('is_first_time') ?? true;
-
     if (isFirstTime) {
       if (mounted) {
         setState(() {
@@ -62,7 +65,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _checkOverlayPermission() async {
     if (!mounted) {
-      print("[AntCrawlerFlutter] _checkOverlayPermission called but widget not mounted. Skipping.");
+      print(
+          "[AntCrawlerFlutter] _checkOverlayPermission called but widget not mounted. Skipping.");
       return;
     }
     if (_permissionCheckInProgress) {
@@ -71,21 +75,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     print("[AntCrawlerFlutter] Starting _checkOverlayPermission...");
     _permissionCheckInProgress = true;
-
-    if (mounted) {
-        setState(() {
-            if(!_isCheckingPermission) _isCheckingPermission = true;
-        });
-    }
-
     bool granted = await _hasOverlayPermission();
-    print("[AntCrawlerFlutter] Permission granted status from _hasOverlayPermission: $granted");
-
+    print(
+        "[AntCrawlerFlutter] Permission granted status from _hasOverlayPermission: $granted");
     if (mounted) {
       setState(() {
         _showPermission = !granted;
         _isCheckingPermission = false;
-        print("[AntCrawlerFlutter] _showPermission set to: ${!granted}. _isCheckingPermission set to false.");
+        print(
+            "[AntCrawlerFlutter] _showPermission set to: ${!granted}. _isCheckingPermission set to false.");
       });
     }
     _permissionCheckInProgress = false;
@@ -96,7 +94,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     print("[AntCrawlerFlutter] Syncing overlay status with native...");
     try {
-      final bool? isActive = await platform.invokeMethod<bool>('isOverlayActive');
+      final bool? isActive =
+          await platform.invokeMethod<bool>('isOverlayActive');
       print("[AntCrawlerFlutter] Native isOverlayActive returned: $isActive");
       if (mounted && isActive != null) {
         setState(() {
@@ -106,10 +105,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       print("[AntCrawlerFlutter] Error calling native isOverlayActive: $e");
-      if (mounted) {
-        // setState(() { _isAntCrawling = false; }); // Optional: default if unsure
-        // _updateStatusText();
-      }
     }
   }
 
@@ -119,12 +114,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     print("[AntCrawlerFlutter] AppLifecycleState changed to: $state");
     if (state == AppLifecycleState.resumed) {
       print("[AntCrawlerFlutter] App resumed.");
-      if (mounted && !_showWelcome && !_showPermission && !_isCheckingPermission && !_permissionCheckInProgress) {
-         print("[AntCrawlerFlutter] App resumed and UI active, syncing overlay status with native...");
+      if (mounted &&
+          !_showWelcome &&
+          !_showPermission &&
+          !_isCheckingPermission &&
+          !_permissionCheckInProgress) {
+        print(
+            "[AntCrawlerFlutter] App resumed and UI active, syncing overlay status with native...");
         _syncOverlayStatusWithNative();
       } else {
-         print("[AntCrawlerFlutter] App resumed but conditions not met for immediate sync. "
-               "Welcome: $_showWelcome, ShowPerm: $_showPermission, CheckingPerm: $_isCheckingPermission, InProgress: $_permissionCheckInProgress");
+        print(
+            "[AntCrawlerFlutter] App resumed but conditions not met for immediate sync. Welcome: $_showWelcome, ShowPerm: $_showPermission, CheckingPerm: $_isCheckingPermission, InProgress: $_permissionCheckInProgress");
       }
     }
   }
@@ -132,7 +132,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _updateStatusText() {
     if (mounted) {
       setState(() {
-        _statusText = _isAntCrawling ? "Ant crawl active" : "Ant crawler has been stopped";
+        _statusText =
+            _isAntCrawling ? "Ant crawl active" : "Ant crawler has been stopped";
       });
     }
   }
@@ -141,15 +142,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (Platform.isAndroid) {
       try {
         print("[AntCrawlerFlutter] Calling native checkOverlayPermission...");
-        final result = await platform.invokeMethod<bool>('checkOverlayPermission');
-        print("[AntCrawlerFlutter] Native checkOverlayPermission returned: $result");
+        final result =
+            await platform.invokeMethod<bool>('checkOverlayPermission');
+        print(
+            "[AntCrawlerFlutter] Native checkOverlayPermission returned: $result");
         return result ?? false;
       } catch (e) {
-        print("[AntCrawlerFlutter] Error calling native checkOverlayPermission: $e");
+        print(
+            "[AntCrawlerFlutter] Error calling native checkOverlayPermission: $e");
         return false;
       }
     }
-    print("[AntCrawlerFlutter] Not Android platform, returning false for overlay permission.");
+    print(
+        "[AntCrawlerFlutter] Not Android platform, returning false for overlay permission.");
     return false;
   }
 
@@ -160,50 +165,81 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await platform.invokeMethod('requestOverlayPermission');
         print("[AntCrawlerFlutter] Native requestOverlayPermission call complete.");
       } catch (e) {
-        print("[AntCrawlerFlutter] Error calling native requestOverlayPermission: $e");
+        print(
+            "[AntCrawlerFlutter] Error calling native requestOverlayPermission: $e");
       }
     }
   }
-  
+  // --- (End of unchanged methods) ---
+
+
+  // *** MODIFIED to load image asset ***
   void _startCrawling() async {
     if (!mounted) return;
     bool granted = await _hasOverlayPermission();
     if (!granted) {
-        if (mounted) { setState(() { _showPermission = true; }); }
-        print("[AntCrawlerFlutter] Start crawling denied: Overlay permission not granted.");
-        return;
+      if (mounted) {
+        setState(() {
+          _showPermission = true;
+        });
+      }
+      print("[AntCrawlerFlutter] Start crawling denied: Overlay permission not granted.");
+      return;
     }
+
+    // Load the ant image from assets
+    final ByteData data = await rootBundle.load('assets/images/ant.png');
+    final Uint8List antImageBytes = data.buffer.asUint8List();
+
+    final prefs = await SharedPreferences.getInstance();
+    double antSize = prefs.getDouble(antSizeKey) ?? 25.0;
+    double antSpeed = prefs.getDouble(antSpeedKey) ?? 50.0;
+
     try {
-      print("[AntCrawlerFlutter] Calling native startOverlay...");
-      await platform.invokeMethod('startOverlay');
+      // Add the image bytes to the arguments
+      Map<String, dynamic> arguments = {
+        'ant_size': antSize,
+        'ant_speed': antSpeed,
+        'ant_image': antImageBytes,
+      };
+      print(
+          "[AntCrawlerFlutter] Calling native startOverlay with arguments (image bytes length: ${antImageBytes.length})");
+      await platform.invokeMethod('startOverlay', arguments);
+
       print("[AntCrawlerFlutter] Native startOverlay call complete.");
       if (mounted) {
-        setState(() { _isAntCrawling = true; });
+        setState(() {
+          _isAntCrawling = true;
+        });
         _updateStatusText();
       }
-    } catch (e) { print('[AntCrawlerFlutter] Failed to start overlay: $e'); }
+    } catch (e) {
+      print('[AntCrawlerFlutter] Failed to start overlay: $e');
+    }
   }
 
   void _stopCrawling() async {
     if (!mounted) return;
-    print("[AntCrawlerFlutter] _stopCrawling: CALLED. Current flags -> _isAntCrawling: $_isAntCrawling, _isCheckingPermission: $_isCheckingPermission, _showWelcome: $_showWelcome, _showPermission: $_showPermission");
     try {
-      print("[AntCrawlerFlutter] _stopCrawling: Calling native stopOverlay...");
       await platform.invokeMethod('stopOverlay');
-      print("[AntCrawlerFlutter] _stopCrawling: Native stopOverlay call complete.");
       if (mounted) {
-        setState(() { _isAntCrawling = false; });
+        setState(() {
+          _isAntCrawling = false;
+        });
         _updateStatusText();
-        print("[AntCrawlerFlutter] _stopCrawling: setState COMPLETE. New flags -> _isAntCrawling: $_isAntCrawling, _isCheckingPermission: $_isCheckingPermission, _showWelcome: $_showWelcome, _showPermission: $_showPermission");
       }
-    } catch (e) { print('[AntCrawlerFlutter] _stopCrawling: Failed to stop overlay: $e'); }
+    } catch (e) {
+      print('[AntCrawlerFlutter] Failed to stop overlay: $e');
+    }
   }
 
+  // --- (UI and Dialog methods are unchanged) ---
   void _closeWelcome() async {
     if (!mounted) return;
-    print("[AntCrawlerFlutter] Closing welcome dialog.");
-    setState(() { _showWelcome = false; });
-    // After welcome is closed, check permissions which might then trigger sync if UI is ready
+    setState(() {
+      _showWelcome = false;
+      _isCheckingPermission = true;
+    });
     await _checkOverlayPermission().then((_) {
       if (mounted && !_showWelcome && !_showPermission) {
         _syncOverlayStatusWithNative();
@@ -212,39 +248,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _declinePermissionMain() {
-    print("[AntCrawlerFlutter] User declined main permission. Exiting app.");
     exit(0);
   }
 
   @override
   void dispose() {
-    print("[AntCrawlerFlutter] HomeScreen disposed.");
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   Widget _buildWelcomeDialogWidget() {
-    print("[AntCrawlerFlutter] Building Welcome Dialog Widget.");
     return Center(
       child: AlertDialog(
         title: const Text('Welcome to Ant Crawler!'),
-        content: const Text('This is a harmless prank app that shows an ant moving across the screen. Enjoy!'),
-        actions: [ TextButton( onPressed: _closeWelcome, child: const Text('Okay'), ), ],
+        content: const Text(
+            'This is a harmless prank app that shows an ant moving across the screen. Enjoy!'),
+        actions: [
+          TextButton(
+            onPressed: _closeWelcome,
+            child: const Text('Okay'),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildPermissionDialogWidget() {
-    print("[AntCrawlerFlutter] Building Permission Dialog Widget.");
     return Center(
       child: AlertDialog(
         title: const Text('Permission Needed'),
-        content: const Text('This app needs permission to display over other apps to work. Please grant it in the system settings.'),
+        content: const Text(
+            'This app needs permission to display over other apps to work. Please grant it in the system settings.'),
         actions: [
-          TextButton( onPressed: _declinePermissionMain, child: const Text('Decline'), ),
+          TextButton(
+            onPressed: _declinePermissionMain,
+            child: const Text('Decline'),
+          ),
           TextButton(
             onPressed: () {
-              if (mounted) { setState(() { _showPermission = false; }); }
+              if (mounted) {
+                setState(() {
+                  _showPermission = false;
+                });
+              }
               _requestOverlayPermission();
             },
             child: const Text('Go to Settings'),
@@ -256,34 +302,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    print("[AntCrawlerFlutter] build() method: ENTERED. Flags -> _isCheckingPermission: $_isCheckingPermission, _showWelcome: $_showWelcome, _showPermission: $_showPermission, _isAntCrawling: $_isAntCrawling");
     if (_isCheckingPermission && !_showWelcome && !_showPermission) {
-      print("[AntCrawlerFlutter] build(): Showing global CircularProgressIndicator.");
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    print("[AntCrawlerFlutter] build(): Proceeding to build main content.");
-
-    // This is where the AppBar with title and settings icon is defined
     Widget mainContent = Scaffold(
       appBar: AppBar(
-        title: const Text('Ant Crawler'), // <<< YOUR TITLE TEXT IS HERE
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings), // <<< YOUR GEAR ICON IS HERE
-            onPressed: () {
-              // TODO: Navigate to Settings Screen
-              // For example: Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsScreen()));
-              print("[AntCrawlerFlutter] Settings button pressed. Navigation to settings screen not yet implemented.");
-            },
-          )
-        ],
-      ),
+          title: const Text('Ant Crawler'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const SettingsScreen()),
+                ).then((_) {
+                  // After returning, if crawling, restart to apply potential changes
+                  if (_isAntCrawling && mounted) {
+                    _startCrawling();
+                  }
+                });
+              },
+            )
+          ]),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton(
-              onPressed: _isAntCrawling || _showPermission || _showWelcome ? null : _startCrawling,
+              onPressed: _isAntCrawling || _showPermission || _showWelcome
+                  ? null
+                  : _startCrawling,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isAntCrawling ? Colors.grey : Colors.green,
                 foregroundColor: Colors.white,
@@ -292,7 +341,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: _isAntCrawling && !_showPermission && !_showWelcome ? _stopCrawling : null,
+              onPressed: _isAntCrawling && !_showPermission && !_showWelcome
+                  ? _stopCrawling
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isAntCrawling ? Colors.red : Colors.grey,
                 foregroundColor: Colors.white,
@@ -305,11 +356,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
-
     return Stack(
       children: [
         mainContent,
-        if (_showWelcome || _showPermission) Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5),),),
+        if (_showWelcome || _showPermission)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.5),
+            ),
+          ),
         if (_showWelcome) _buildWelcomeDialogWidget(),
         if (_showPermission) _buildPermissionDialogWidget(),
       ],

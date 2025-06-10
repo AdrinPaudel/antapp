@@ -1,7 +1,7 @@
-package com.example.antapp // Adjust if your package name is different
+package com.adrin.antapp
 
-import android.app.ActivityManager // Required for checking running services
-import android.content.Context // Required for getSystemService
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -23,12 +23,9 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "checkOverlayPermission" -> {
                     val canDraw = Settings.canDrawOverlays(this)
-                    Log.d("AntCrawlerNative", "checkOverlayPermission native call. Can draw: $canDraw")
                     result.success(canDraw)
                 }
                 "requestOverlayPermission" -> {
-                    // ... (existing code for this method) ...
-                    Log.d("AntCrawlerNative", "requestOverlayPermission native call.")
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         val intent = Intent(
                             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -38,67 +35,89 @@ class MainActivity : FlutterActivity() {
                             startActivity(intent)
                             result.success(null)
                         } catch (e: Exception) {
-                            Log.e("AntCrawlerNative", "Error starting ACTION_MANAGE_OVERLAY_PERMISSION activity: ${e.message}")
                             result.error("ACTIVITY_START_FAILED", e.message, null)
                         }
                     } else {
-                        Log.d("AntCrawlerNative", "Overlay permission request not applicable for this Android version or already granted implicitly.")
                         result.success(true)
                     }
                 }
                 "startOverlay" -> {
-                    Log.d("AntCrawlerNative", "startOverlay native call.")
-                    startOverlayService()
+                    val args = call.arguments as? Map<String, Any>
+                    val antSize = args?.get("ant_size") as? Double
+                    val antSpeed = args?.get("ant_speed") as? Double
+                    // *** MODIFIED to get image bytes ***
+                    val antImage = args?.get("ant_image") as? ByteArray
+
+                    startOverlayService(
+                        size = antSize?.toFloat(),
+                        speed = antSpeed?.toFloat(),
+                        image = antImage, // Pass image bytes
+                        isUpdate = false
+                    )
                     result.success(null)
                 }
                 "stopOverlay" -> {
-                    Log.d("AntCrawlerNative", "stopOverlay native call.")
                     stopOverlayService()
                     result.success(null)
                 }
-                // ADD THIS NEW METHOD HANDLER
                 "isOverlayActive" -> {
                     val isActive = isServiceRunning(OverlayService::class.java)
-                    Log.d("AntCrawlerNative", "isOverlayActive check. Service running: $isActive")
                     result.success(isActive)
                 }
-                else -> {
-                    Log.d("AntCrawlerNative", "Method ${call.method} not implemented.")
-                    result.notImplemented()
+                "updateAntSettings" -> {
+                    if (!isServiceRunning(OverlayService::class.java)) {
+                        result.success(null)
+                        return@setMethodCallHandler
+                    }
+                    val args = call.arguments as? Map<String, Any>
+                    val size = (args?.get("size") as? Double)?.toFloat()
+                    val speed = (args?.get("speed") as? Double)?.toFloat()
+
+                    startOverlayService(
+                        size = size,
+                        speed = speed,
+                        // Image is not passed during live updates to save data
+                        image = null,
+                        isUpdate = true
+                    )
+                    result.success(null)
                 }
+                else -> result.notImplemented()
             }
         }
     }
 
-    private fun startOverlayService() {
-        // ... (existing code for this method) ...
-        Log.d("AntCrawlerNative", "Attempting to start OverlayService.")
+    // *** MODIFIED to accept image bytes ***
+    private fun startOverlayService(
+        size: Float? = null,
+        speed: Float? = null,
+        image: ByteArray? = null,
+        isUpdate: Boolean = false
+    ) {
         val intent = Intent(this, OverlayService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        size?.let { intent.putExtra("ant_size_extra", it) }
+        speed?.let { intent.putExtra("ant_speed_extra", it) }
+        image?.let { intent.putExtra("ant_image_extra", it) } // Add image to intent
+        intent.putExtra("is_update_extra", isUpdate)
+
+        if (!isUpdate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
-        Log.d("AntCrawlerNative", "OverlayService start command issued.")
     }
 
     private fun stopOverlayService() {
-        // ... (existing code for this method) ...
-        Log.d("AntCrawlerNative", "Attempting to stop OverlayService.")
         val intent = Intent(this, OverlayService::class.java)
         stopService(intent)
-        Log.d("AntCrawlerNative", "OverlayService stop command issued.")
     }
 
-    // ADD THIS NEW HELPER FUNCTION
-    @Suppress("DEPRECATION") // getRunningServices is deprecated for 3rd party apps but okay for own app.
+    @Suppress("DEPRECATION")
     private fun isServiceRunning(serviceClass: Class<*>): Boolean {
         val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (serviceClass.name == service.service.className) {
-                return true // Service is running
-            }
+            if (serviceClass.name == service.service.className) { return true }
         }
-        return false // Service is not running
+        return false
     }
 }
