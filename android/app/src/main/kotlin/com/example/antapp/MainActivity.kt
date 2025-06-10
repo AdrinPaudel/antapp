@@ -19,7 +19,6 @@ class MainActivity : FlutterActivity() {
         Log.d("AntCrawlerNative", "Configuring Flutter Engine and Method Channel.")
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            Log.d("AntCrawlerNative", "Method call received: ${call.method}")
             when (call.method) {
                 "checkOverlayPermission" -> {
                     val canDraw = Settings.canDrawOverlays(this)
@@ -45,18 +44,19 @@ class MainActivity : FlutterActivity() {
                     val args = call.arguments as? Map<String, Any>
                     val antSize = args?.get("ant_size") as? Double
                     val antSpeed = args?.get("ant_speed") as? Double
-                    // *** MODIFIED to get image bytes ***
                     val antImage = args?.get("ant_image") as? ByteArray
 
                     startOverlayService(
                         size = antSize?.toFloat(),
                         speed = antSpeed?.toFloat(),
-                        image = antImage, // Pass image bytes
+                        image = antImage,
                         isUpdate = false
                     )
                     result.success(null)
                 }
                 "stopOverlay" -> {
+                    // *** ADDED log to confirm this is called ***
+                    Log.d("AntCrawlerNative", "stopOverlay command received. Stopping service.")
                     stopOverlayService()
                     result.success(null)
                 }
@@ -76,7 +76,6 @@ class MainActivity : FlutterActivity() {
                     startOverlayService(
                         size = size,
                         speed = speed,
-                        // Image is not passed during live updates to save data
                         image = null,
                         isUpdate = true
                     )
@@ -87,7 +86,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // *** MODIFIED to accept image bytes ***
     private fun startOverlayService(
         size: Float? = null,
         speed: Float? = null,
@@ -97,7 +95,7 @@ class MainActivity : FlutterActivity() {
         val intent = Intent(this, OverlayService::class.java)
         size?.let { intent.putExtra("ant_size_extra", it) }
         speed?.let { intent.putExtra("ant_speed_extra", it) }
-        image?.let { intent.putExtra("ant_image_extra", it) } // Add image to intent
+        image?.let { intent.putExtra("ant_image_extra", it) }
         intent.putExtra("is_update_extra", isUpdate)
 
         if (!isUpdate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
